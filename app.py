@@ -26,7 +26,7 @@ def login():
     password = st.text_input("Enter Password", type="password")
 
     if st.button("Login"):
-        if check_password(password):
+        if password == "admin":
             st.session_state.auth = True
             st.success("Access granted")
         else:
