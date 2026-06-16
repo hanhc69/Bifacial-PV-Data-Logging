@@ -5,21 +5,18 @@ from io import BytesIO
 from datetime import datetime
 import os
 import hashlib
+import matplotlib.pyplot as plt
 
 # =========================
-# 🔐 AUTHENTICATION (SECURE)
+# 🔐 AUTHENTICATION
 # =========================
 
-SALT = "pv_secure_salt_2026"  # change this for deployment
-
+SALT = "pv_secure_salt_2026"
 
 def hash_password(password: str) -> str:
     return hashlib.sha256((password + SALT).encode()).hexdigest()
 
-
-# Stored hashed password (admin123)
 PASSWORD_HASH = hash_password("admin123")
-
 
 def check_password(password: str) -> bool:
     return hash_password(password) == PASSWORD_HASH
@@ -49,7 +46,7 @@ if not st.session_state.auth:
     st.stop()
 
 # =========================
-# 🚪 LOGOUT (SIDEBAR)
+# 🚪 LOGOUT
 # =========================
 
 st.sidebar.subheader("Session")
@@ -59,23 +56,37 @@ if st.sidebar.button("🚪 Logout"):
     st.rerun()
 
 # =========================
-# 📊 MAIN APP
+# 📊 PLOTTING FUNCTION
 # =========================
 
-st.title("📊 Bifacial PV Data Logging System")
+def plot_weather_signals(time, temperatures, irradiance, title="Weather Data"):
+    fig, ax1 = plt.subplots()
 
-file = st.file_uploader("Upload CSV", type=["csv"])
+    # multiple temperature lines
+    for label, temp_values in temperatures.items():
+        ax1.plot(time, temp_values, label=label)
 
-report_title = st.text_input(
-    "Report Title",
-    "Bifacial PV Performance Report"
-)
+    ax1.set_xlabel("Time")
+    ax1.set_ylabel("Temperature (°C)")
 
-observation = st.text_area("Observation Notes")
+    # irradiance axis
+    ax2 = ax1.twinx()
+    ax2.plot(time, irradiance, color="orange", label="Irradiance")
+    ax2.set_ylabel("Irradiance (W/m²)")
+
+    plt.title(title)
+
+    # combined legend
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2)
+
+    fig.tight_layout()
+    return fig
 
 
 # =========================
-# 📄 WORD REPORT FUNCTION
+# 📄 WORD REPORT
 # =========================
 
 def generate_word_report(df, report_title, observation):
@@ -133,8 +144,16 @@ def generate_word_report(df, report_title, observation):
 
 
 # =========================
-# 📂 DATA SECTION (CSV)
+# 📂 MAIN APP
 # =========================
+
+st.title("📊 Bifacial PV Data Logging System")
+
+file = st.file_uploader("Upload CSV", type=["csv"])
+
+report_title = st.text_input("Report Title", "Bifacial PV Performance Report")
+observation = st.text_area("Observation Notes")
+
 
 if file is not None:
 
@@ -146,12 +165,34 @@ if file is not None:
     st.subheader("📌 Dataset Info")
     st.write(f"Rows: {df.shape[0]}")
     st.write(f"Columns: {df.shape[1]}")
-    
-    fig = make_sales_plot(x, y)
-    fig.savefig("sales_plot.png", dpi=300, bbox_inches="tight")
-    
+
     # =========================
-    # 📄 REPORT BUTTON
+    # BUILD PLOT INPUTS
+    # =========================
+
+    time = df["Time"] if "Time" in df.columns else df.index
+
+    # detect temperature columns automatically
+    temperature_cols = [col for col in df.columns if "temp" in col.lower()]
+
+    temperatures = {
+        col: df[col].tolist()
+        for col in temperature_cols
+    }
+
+    irradiance = df["Irradiance"] if "Irradiance" in df.columns else [0] * len(df)
+
+    # =========================
+    # PLOT
+    # =========================
+
+    fig = plot_weather_signals(time, temperatures, irradiance)
+
+    st.pyplot(fig)
+    plt.close(fig)
+
+    # =========================
+    # REPORT BUTTON
     # =========================
 
     if st.button("📄 Generate Word Report"):
@@ -164,6 +205,7 @@ if file is not None:
             file_name="PV_Report.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
+
 
 # =========================
 # ⚙️ ADMIN PANEL
