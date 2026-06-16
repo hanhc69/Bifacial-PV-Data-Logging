@@ -59,6 +59,12 @@ if st.sidebar.button("🚪 Logout"):
 # 📊 PLOTTING FUNCTION
 # =========================
 
+def fig_to_image_bytes(fig):
+    buf = BytesIO()
+    fig.savefig(buf, format="png", dpi=300, bbox_inches="tight")
+    buf.seek(0)
+    return buf
+    
 def plot_weather_signals(time, temperatures, irradiance, title="Weather Data"):
     fig, ax1 = plt.subplots()
 
@@ -135,7 +141,11 @@ def generate_word_report(df, report_title, observation):
             summary.cell(i, 1).text = f"{numeric_df[col].mean():.2f}"
             summary.cell(i, 2).text = f"{numeric_df[col].min():.2f}"
             summary.cell(i, 3).text = f"{numeric_df[col].max():.2f}"
+    doc.add_heading("Weather Graph", level=2)
 
+    img_stream = fig_to_image_bytes(fig)
+    doc.add_picture(img_stream)
+    
     buffer = BytesIO()
     doc.save(buffer)
     buffer.seek(0)
