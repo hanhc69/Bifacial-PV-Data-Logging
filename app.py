@@ -146,7 +146,10 @@ if file is not None:
     st.subheader("📌 Dataset Info")
     st.write(f"Rows: {df.shape[0]}")
     st.write(f"Columns: {df.shape[1]}")
-
+    
+    fig = make_sales_plot(x, y)
+    fig.savefig("sales_plot.png", dpi=300, bbox_inches="tight")
+    
     # =========================
     # 📄 REPORT BUTTON
     # =========================
