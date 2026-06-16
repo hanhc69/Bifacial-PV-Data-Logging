@@ -7,13 +7,22 @@ import os
 import hashlib
 
 # =========================
-# 🔐 AUTHENTICATION
+# 🔐 AUTHENTICATION (SECURE)
 # =========================
 
-PASSWORD_HASH = hashlib.sha256("admin123".encode()).hexdigest()
+SALT = "pv_secure_salt_2026"  # change this for deployment
 
-def check_password(pwd):
-    return hashlib.sha256(pwd.encode()).hexdigest() == PASSWORD_HASH
+
+def hash_password(password: str) -> str:
+    return hashlib.sha256((password + SALT).encode()).hexdigest()
+
+
+# Stored hashed password (admin123)
+PASSWORD_HASH = hash_password("admin123")
+
+
+def check_password(password: str) -> bool:
+    return hash_password(password) == PASSWORD_HASH
 
 
 if "auth" not in st.session_state:
@@ -26,17 +35,28 @@ def login():
     password = st.text_input("Enter Password", type="password")
 
     if st.button("Login"):
-        if password == "admin":
+        if check_password(password):
             st.session_state.auth = True
             st.success("Access granted")
+            st.rerun()
         else:
             st.error("Wrong password")
-
-    st.stop()
+            st.session_state.auth = False
 
 
 if not st.session_state.auth:
     login()
+    st.stop()
+
+# =========================
+# 🚪 LOGOUT (SIDEBAR)
+# =========================
+
+st.sidebar.subheader("Session")
+
+if st.sidebar.button("🚪 Logout"):
+    st.session_state.auth = False
+    st.rerun()
 
 # =========================
 # 📊 MAIN APP
@@ -46,16 +66,13 @@ st.title("📊 Bifacial PV Data Logging System")
 
 file = st.file_uploader("Upload CSV", type=["csv"])
 
-# =========================
-# 📄 REPORT INPUTS
-# =========================
-
 report_title = st.text_input(
     "Report Title",
     "Bifacial PV Performance Report"
 )
 
 observation = st.text_area("Observation Notes")
+
 
 # =========================
 # 📄 WORD REPORT FUNCTION
@@ -65,15 +82,13 @@ def generate_word_report(df, report_title, observation):
 
     doc = Document()
 
-    # Title
     doc.add_heading(report_title, level=1)
 
-    # Info table
     table = doc.add_table(rows=6, cols=2)
     table.style = "Table Grid"
 
-    start_time = f"{df['Date'].iloc[0]} {df['Time'].iloc[0]}" if "Date" in df.columns else "N/A"
-    end_time = f"{df['Date'].iloc[-1]} {df['Time'].iloc[-1]}" if "Date" in df.columns else "N/A"
+    start_time = f"{df['Date'].iloc[0]} {df['Time'].iloc[0]}" if "Date" in df.columns and "Time" in df.columns else "N/A"
+    end_time = f"{df['Date'].iloc[-1]} {df['Time'].iloc[-1]}" if "Date" in df.columns and "Time" in df.columns else "N/A"
 
     info = [
         ("Generated Date", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
@@ -88,11 +103,9 @@ def generate_word_report(df, report_title, observation):
         table.cell(i, 0).text = k
         table.cell(i, 1).text = v
 
-    # Column overview
     doc.add_heading("Column Overview", level=2)
     doc.add_paragraph(", ".join(df.columns))
 
-    # Numeric summary
     numeric_df = df.select_dtypes(include="number")
 
     if not numeric_df.empty:
@@ -120,7 +133,7 @@ def generate_word_report(df, report_title, observation):
 
 
 # =========================
-# 📂 DATA SECTION
+# 📂 DATA SECTION (CSV)
 # =========================
 
 if file is not None:
