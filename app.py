@@ -16,16 +16,8 @@ SALT = "pv_secure_salt_2026"
 def hash_password(password: str) -> str:
     return hashlib.sha256((password + SALT).encode()).hexdigest()
 
-PASSWORD_HASH = hash_password("admin123")
-
 def check_password(password: str) -> bool:
-    return hash_password(password) == PASSWORD_HASH
-
-
-if "auth" not in st.session_state:
-    st.session_state.auth = False
-    st.session_state.user_role = None  # "admin" or "guest"
-
+    return hash_password(password) == hash_password("admin123")
 
 def login():
     st.title("🔐 Login")
@@ -53,23 +45,6 @@ def login():
             st.success("Guest access granted")
             st.rerun()
 
-
-if not st.session_state.auth:
-    login()
-    st.stop()
-
-# =========================
-# 🚪 LOGOUT
-# =========================
-
-st.sidebar.subheader("Session")
-st.sidebar.write(f"Role: {st.session_state.user_role.capitalize()}")
-
-if st.sidebar.button("🚪 Logout"):
-    st.session_state.auth = False
-    st.session_state.user_role = None
-    st.rerun()
-
 # =========================
 # 📊 PLOTTING FUNCTION
 # =========================
@@ -79,7 +54,7 @@ def fig_to_image_bytes(fig):
     fig.savefig(buf, format="png", dpi=300, bbox_inches="tight")
     buf.seek(0)
     return buf
-    
+
 def plot_weather_signals(time, temperatures, irradiance, title="Weather Data"):
     fig, ax1 = plt.subplots()
 
@@ -105,13 +80,11 @@ def plot_weather_signals(time, temperatures, irradiance, title="Weather Data"):
     fig.tight_layout()
     return fig
 
-
 # =========================
 # 📄 WORD REPORT
 # =========================
 
-def generate_word_report(df, report_title, observation):
-
+def generate_word_report(df, report_title, observation, fig):
     doc = Document()
 
     doc.add_heading(report_title, level=1)
@@ -156,6 +129,7 @@ def generate_word_report(df, report_title, observation):
             summary.cell(i, 1).text = f"{numeric_df[col].mean():.2f}"
             summary.cell(i, 2).text = f"{numeric_df[col].min():.2f}"
             summary.cell(i, 3).text = f"{numeric_df[col].max():.2f}"
+
     doc.add_heading("Weather Graph", level=2)
 
     img_stream = fig_to_image_bytes(fig)
@@ -167,18 +141,37 @@ def generate_word_report(df, report_title, observation):
 
     return buffer
 
-
 # =========================
 # 📂 MAIN APP
 # =========================
 
+# Initialize session state
+if "auth" not in st.session_state:
+    st.session_state.auth = False
+    st.session_state.user_role = None  # "admin" or "guest"
+
+# Check authentication
+if not st.session_state.auth:
+    login()
+    st.stop()
+
+# Logout button
+st.sidebar.subheader("Session")
+st.sidebar.write(f"Role: {st.session_state.user_role.capitalize()}")
+
+if st.sidebar.button("🚪 Logout"):
+    st.session_state.auth = False
+    st.session_state.user_role = None
+    st.rerun()
+
+# Main app title
 st.title("📊 Bifacial PV Data Logging System")
 
+# File upload
 file = st.file_uploader("Upload CSV", type=["csv"])
 
 report_title = st.text_input("Report Title", "Bifacial PV Performance Report")
 observation = st.text_area("Observation Notes")
-
 
 if file is not None:
 
@@ -191,13 +184,10 @@ if file is not None:
     st.write(f"Rows: {df.shape[0]}")
     st.write(f"Columns: {df.shape[1]}")
 
-    # =========================
-    # BUILD PLOT INPUTS
-    # =========================
-
+    # Build plot inputs
     time = df["Time"] if "Time" in df.columns else df.index
 
-    # detect temperature columns automatically
+    # Detect temperature columns automatically
     temperature_cols = [col for col in df.columns if "temp" in col.lower()]
 
     temperatures = {
@@ -207,22 +197,16 @@ if file is not None:
 
     irradiance = df["Irradiance"] if "Irradiance" in df.columns else [0] * len(df)
 
-    # =========================
-    # PLOT
-    # =========================
-
+    # Plot
     fig = plot_weather_signals(time, temperatures, irradiance)
 
     st.pyplot(fig)
     plt.close(fig)
 
-    # =========================
-    # REPORT BUTTON
-    # =========================
-
+    # Report button
     if st.button("📄 Generate Word Report"):
 
-        report = generate_word_report(df, report_title, observation)
+        report = generate_word_report(df, report_title, observation, fig)
 
         st.download_button(
             label="⬇️ Download Report",
@@ -231,11 +215,7 @@ if file is not None:
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
 
-
-# =========================
-# ⚙️ ADMIN PANEL (Admin Only)
-# =========================
-
+# Admin panel
 if st.session_state.user_role == "admin":
     st.divider()
     st.subheader("🔴 Admin Controls")
