@@ -24,21 +24,34 @@ def check_password(password: str) -> bool:
 
 if "auth" not in st.session_state:
     st.session_state.auth = False
+    st.session_state.user_role = None  # "admin" or "guest"
 
 
 def login():
-    st.title("🔐 Admin Login")
+    st.title("🔐 Login")
 
-    password = st.text_input("Enter Password", type="password")
+    col1, col2 = st.columns(2)
 
-    if st.button("Login"):
-        if check_password(password):
+    with col1:
+        st.subheader("Admin Login")
+        password = st.text_input("Enter Admin Password", type="password", key="admin_pass")
+
+        if st.button("Login as Admin"):
+            if check_password(password):
+                st.session_state.auth = True
+                st.session_state.user_role = "admin"
+                st.success("Admin access granted")
+                st.rerun()
+            else:
+                st.error("Wrong password")
+
+    with col2:
+        st.subheader("Guest Access")
+        if st.button("Login as Guest"):
             st.session_state.auth = True
-            st.success("Access granted")
+            st.session_state.user_role = "guest"
+            st.success("Guest access granted")
             st.rerun()
-        else:
-            st.error("Wrong password")
-            st.session_state.auth = False
 
 
 if not st.session_state.auth:
@@ -50,9 +63,11 @@ if not st.session_state.auth:
 # =========================
 
 st.sidebar.subheader("Session")
+st.sidebar.write(f"Role: {st.session_state.user_role.capitalize()}")
 
 if st.sidebar.button("🚪 Logout"):
     st.session_state.auth = False
+    st.session_state.user_role = None
     st.rerun()
 
 # =========================
@@ -218,14 +233,19 @@ if file is not None:
 
 
 # =========================
-# ⚙️ ADMIN PANEL
+# ⚙️ ADMIN PANEL (Admin Only)
 # =========================
 
-st.divider()
-st.subheader("🔴 Admin Controls")
+if st.session_state.user_role == "admin":
+    st.divider()
+    st.subheader("🔴 Admin Controls")
 
-if st.button("🔄 Restart Raspberry Pi"):
-    os.system("sudo reboot")
+    if st.button("🔄 Restart Raspberry Pi"):
+        os.system("sudo reboot")
 
-if st.button("⛔ Shutdown Raspberry Pi"):
-    os.system("sudo shutdown -h now")
+    if st.button("⛔ Shutdown Raspberry Pi"):
+        os.system("sudo shutdown -h now")
+else:
+    # Show message to guests
+    st.divider()
+    st.info("ℹ️ Admin controls are not available in guest mode.")
