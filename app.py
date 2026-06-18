@@ -8,7 +8,7 @@ import hashlib
 import matplotlib.pyplot as plt
 
 # =========================
-# 🔐 AUTHENTICATION
+# AUTHENTICATION
 # =========================
 
 SALT = "pv_secure_salt_2026"
@@ -46,7 +46,7 @@ def login():
             st.rerun()
 
 # =========================
-# 📊 PLOTTING FUNCTION
+# PLOTTING FUNCTION
 # =========================
 
 def fig_to_image_bytes(fig):
@@ -81,7 +81,7 @@ def plot_weather_signals(time, temperatures, irradiance, title="Weather Data"):
     return fig
 
 # =========================
-# 📄 WORD REPORT
+# WORD REPORT
 # =========================
 
 def generate_word_report(df, report_title, observation, fig):
@@ -140,9 +140,13 @@ def generate_word_report(df, report_title, observation, fig):
     buffer.seek(0)
 
     return buffer
-
 # =========================
-# 📂 MAIN APP
+# Annual Irradiance Tracker
+# =========================
+def annual_irradiance_tracking(df,irrdiance):
+    return True
+# =========================
+# MAIN APP
 # =========================
 
 # Initialize session state
