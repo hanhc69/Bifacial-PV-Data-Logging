@@ -144,19 +144,26 @@ def generate_word_report(df, report_title, observation, fig):
 # PDF REPORT
 # =========================
 
-def generate PDF report(df, report_title, observation, fig):
+def generate_pdf_report(df, report_title, observation, fig):
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial", "B", 16)
-    pdf.cell(0,10,report_titlr,new_x="LMARGIN", new_y="NEXT")
 
-    
+    # Title
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 10, report_title, new_x="LMARGIN", new_y="NEXT")
 
-    table = doc.add_table(rows=6, cols=2)
-    table.style = "Table Grid"
+    # Report info
+    start_time = (
+        f"{df['Date'].iloc[0]} {df['Time'].iloc[0]}"
+        if "Date" in df.columns and "Time" in df.columns
+        else "N/A"
+    )
 
-    start_time = f"{df['Date'].iloc[0]} {df['Time'].iloc[0]}" if "Date" in df.columns and "Time" in df.columns else "N/A"
-    end_time = f"{df['Date'].iloc[-1]} {df['Time'].iloc[-1]}" if "Date" in df.columns and "Time" in df.columns else "N/A"
+    end_time = (
+        f"{df['Date'].iloc[-1]} {df['Time'].iloc[-1]}"
+        if "Date" in df.columns and "Time" in df.columns
+        else "N/A"
+    )
 
     info = [
         ("Generated Date", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
@@ -166,49 +173,70 @@ def generate PDF report(df, report_title, observation, fig):
         ("End Time", end_time),
         ("Observation Notes", observation)
     ]
-    pdf.set_font("Arial", size=11)
+
+    pdf.ln(5)
+
+    pdf.set_font("Helvetica", size=10)
 
     for key, value in info:
-        pdf.cell(60, 8, key, border=1)
-        pdf.cell(120, 8, str(value), border=1)
+        pdf.cell(50, 8, key, border=1)
+        pdf.cell(130, 8, str(value), border=1)
         pdf.ln()
-        for i, (k, v) in enumerate(info):
-            table.cell(i, 0).text = k
-            table.cell(i, 1).text = v
 
-    doc.add_heading("Column Overview", level=2)
-    doc.add_paragraph(", ".join(df.columns))
+    # Column Overview
+    pdf.ln(5)
 
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.cell(0, 10, "Column Overview", new_x="LMARGIN", new_y="NEXT")
+
+    pdf.set_font("Helvetica", size=10)
+    pdf.multi_cell(0, 8, ", ".join(df.columns))
+
+    # Numeric Summary
     numeric_df = df.select_dtypes(include="number")
 
     if not numeric_df.empty:
-        doc.add_heading("Numeric Summary", level=2)
+        pdf.ln(5)
 
-        summary = doc.add_table(rows=len(numeric_df.columns) + 1, cols=4)
-        summary.style = "Table Grid"
+        pdf.set_font("Helvetica", "B", 13)
+        pdf.cell(0, 10, "Numeric Summary", new_x="LMARGIN", new_y="NEXT")
 
-        summary.cell(0, 0).text = "Column"
-        summary.cell(0, 1).text = "Mean"
-        summary.cell(0, 2).text = "Min"
-        summary.cell(0, 3).text = "Max"
+        pdf.set_font("Helvetica", "B", 10)
 
-        for i, col in enumerate(numeric_df.columns, start=1):
-            summary.cell(i, 0).text = col
-            summary.cell(i, 1).text = f"{numeric_df[col].mean():.2f}"
-            summary.cell(i, 2).text = f"{numeric_df[col].min():.2f}"
-            summary.cell(i, 3).text = f"{numeric_df[col].max():.2f}"
+        headers = ["Column", "Mean", "Min", "Max"]
 
-    doc.add_heading("Weather Graph", level=2)
+        for header in headers:
+            pdf.cell(45, 8, header, border=1)
+
+        pdf.ln()
+
+        pdf.set_font("Helvetica", size=10)
+
+        for col in numeric_df.columns:
+            pdf.cell(45, 8, str(col), border=1)
+            pdf.cell(45, 8, f"{numeric_df[col].mean():.2f}", border=1)
+            pdf.cell(45, 8, f"{numeric_df[col].min():.2f}", border=1)
+            pdf.cell(45, 8, f"{numeric_df[col].max():.2f}", border=1)
+            pdf.ln()
+
+    # Graph
+    pdf.ln(5)
+
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.cell(0, 10, "Weather Graph", new_x="LMARGIN", new_y="NEXT")
 
     img_stream = fig_to_image_bytes(fig)
-    doc.add_picture(img_stream)
-    
-    buffer = BytesIO()
-    doc.save(buffer)
-    buffer.seek(0)
 
-    return buffer
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+        tmp.write(img_stream.getvalue())
+        temp_image_path = tmp.name
 
+    pdf.image(temp_image_path, w=180)
+
+    # Convert to bytes
+    pdf_bytes = bytes(pdf.output())
+
+    return pdf_bytes
 
 # =========================
 # Annual Irradiance Tracker
@@ -288,16 +316,17 @@ if file is not None:
             file_name="PV_Report.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
- # PDF report button
+
+    # PDF report button
     if st.button("📄 Generate PDF Report"):
 
-        report = generate_word_report(df, report_title, observation, fig)
+        report = generate_pdf_report(df, report_title, observation, fig)
 
         st.download_button(
             label="⬇️ Download Report",
             data=report,
-            file_name="PV_Report.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            file_name="PV_Report.pdf",
+            mime="application/pdf"
         )
 # Admin panel
 if st.session_state.user_role == "admin":
