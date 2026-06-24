@@ -336,6 +336,17 @@ if file is not None:
             file_name="PV_Report.pdf",
             mime="application/pdf"
         )
+    #testing
+    if st.button("Test Supabase"):
+
+    response = (
+        supabase.table("pi_commands")
+        .update({"command": "hello"})
+        .eq("id", 1)
+        .execute()
+    )
+
+    st.success("Database updated!")
 # Admin panel
 if st.session_state.user_role == "admin":
     st.divider()
