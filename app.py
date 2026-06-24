@@ -7,6 +7,7 @@ import os
 import hashlib
 import matplotlib.pyplot as plt
 from fpdf import FPDF
+import tempfile
 # =========================
 # AUTHENTICATION
 # =========================
@@ -226,6 +227,7 @@ def generate_pdf_report(df, report_title, observation, fig):
     pdf.cell(0, 10, "Weather Graph", new_x="LMARGIN", new_y="NEXT")
 
     img_stream = fig_to_image_bytes(fig)
+    img_stream.seek(0)
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
         tmp.write(img_stream.getvalue())
