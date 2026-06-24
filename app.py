@@ -8,6 +8,12 @@ import hashlib
 import matplotlib.pyplot as plt
 from fpdf import FPDF
 import tempfile
+from supabase import create_client
+
+supabase = create_client(
+    st.secrets["SUPABASE_URL"],
+    st.secrets["SUPABASE_KEY"]
+)
 # =========================
 # AUTHENTICATION
 # =========================
