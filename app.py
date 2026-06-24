@@ -338,15 +338,13 @@ if file is not None:
         )
     #testing
     if st.button("Test Supabase"):
-
-    response = (
-        supabase.table("pi_commands")
-        .update({"command": "hello"})
-        .eq("id", 1)
-        .execute()
-    )
-
-    st.success("Database updated!")
+        response = (
+            supabase.table("pi_commands")
+            .update({"command": "hello"})
+            .eq("id", 1)
+            .execute()
+        )
+        st.success("Database updated!")
 # Admin panel
 if st.session_state.user_role == "admin":
     st.divider()
