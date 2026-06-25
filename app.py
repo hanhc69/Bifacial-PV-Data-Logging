@@ -92,30 +92,36 @@ def plot_weather_signals(time, temperatures, irradiances, title="Weather Data"):
 # PREVIEW FUNCTION
 # =========================
 
-def preview_report_content(df, report_title, observation):
+def preview_report_content(df, report_title, observation, fig):
     """Display a preview of what will be in the report"""
+    
+    # Report Title
+    st.markdown(f"# {report_title}")
+    
+    # Metadata Table
     start_time = f"{df['Date'].iloc[0]} {df['Time'].iloc[0]}" if "Date" in df.columns and "Time" in df.columns else "N/A"
     end_time = f"{df['Date'].iloc[-1]} {df['Time'].iloc[-1]}" if "Date" in df.columns and "Time" in df.columns else "N/A"
     
-    st.write("**Report Metadata:**")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.write(f"• Title: {report_title}")
-        st.write(f"• Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        st.write(f"• Records: {df.shape[0]}")
-    with col2:
-        st.write(f"• Start: {start_time}")
-        st.write(f"• End: {end_time}")
-        st.write(f"• Columns: {df.shape[1]}")
+    info = [
+        ("Generated Date", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+        ("Total Records", str(df.shape[0])),
+        ("Total Columns", str(df.shape[1])),
+        ("Start Time", start_time),
+        ("End Time", end_time),
+        ("Observation Notes", observation if observation else "")
+    ]
     
-    st.write("**Observation Notes:**")
-    st.write(observation if observation else "No notes provided")
+    metadata_df = pd.DataFrame(info, columns=["Field", "Value"])
+    st.dataframe(metadata_df, use_container_width=True, hide_index=True)
     
-    st.write("**Column Overview:**")
+    # Column Overview
+    st.markdown("## Column Overview")
     st.write(", ".join(df.columns))
     
-    st.write("**Numeric Summary:**")
+    # Numeric Summary
+    st.markdown("## Numeric Summary")
     numeric_df = df.select_dtypes(include="number")
+    
     if not numeric_df.empty:
         summary_data = {
             'Column': numeric_df.columns,
@@ -123,9 +129,14 @@ def preview_report_content(df, report_title, observation):
             'Min': [f"{numeric_df[col].min():.2f}" for col in numeric_df.columns],
             'Max': [f"{numeric_df[col].max():.2f}" for col in numeric_df.columns],
         }
-        st.dataframe(pd.DataFrame(summary_data), use_container_width=True)
+        summary_table = pd.DataFrame(summary_data)
+        st.dataframe(summary_table, use_container_width=True, hide_index=True)
     else:
         st.info("No numeric columns found")
+    
+    # Weather Graph
+    st.markdown("## Weather Graph")
+    st.pyplot(fig)
 
 # =========================
 # WORD REPORT
@@ -328,7 +339,7 @@ if file is not None:
         
         if st.session_state.get("show_preview"):
             with st.expander("📋 Report Preview", expanded=True):
-                preview_report_content(df, report_title, observation)
+                preview_report_content(df, report_title, observation, fig)
             
             st.divider()
             col1, col2 = st.columns(2)
