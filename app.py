@@ -89,6 +89,45 @@ def plot_weather_signals(time, temperatures, irradiances, title="Weather Data"):
     return fig
 
 # =========================
+# PREVIEW FUNCTION
+# =========================
+
+def preview_report_content(df, report_title, observation):
+    """Display a preview of what will be in the report"""
+    start_time = f"{df['Date'].iloc[0]} {df['Time'].iloc[0]}" if "Date" in df.columns and "Time" in df.columns else "N/A"
+    end_time = f"{df['Date'].iloc[-1]} {df['Time'].iloc[-1]}" if "Date" in df.columns and "Time" in df.columns else "N/A"
+    
+    st.write("**Report Metadata:**")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write(f"• Title: {report_title}")
+        st.write(f"• Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        st.write(f"• Records: {df.shape[0]}")
+    with col2:
+        st.write(f"• Start: {start_time}")
+        st.write(f"• End: {end_time}")
+        st.write(f"• Columns: {df.shape[1]}")
+    
+    st.write("**Observation Notes:**")
+    st.write(observation if observation else "No notes provided")
+    
+    st.write("**Column Overview:**")
+    st.write(", ".join(df.columns))
+    
+    st.write("**Numeric Summary:**")
+    numeric_df = df.select_dtypes(include="number")
+    if not numeric_df.empty:
+        summary_data = {
+            'Column': numeric_df.columns,
+            'Mean': [f"{numeric_df[col].mean():.2f}" for col in numeric_df.columns],
+            'Min': [f"{numeric_df[col].min():.2f}" for col in numeric_df.columns],
+            'Max': [f"{numeric_df[col].max():.2f}" for col in numeric_df.columns],
+        }
+        st.dataframe(pd.DataFrame(summary_data), use_container_width=True)
+    else:
+        st.info("No numeric columns found")
+
+# =========================
 # WORD REPORT
 # =========================
 
@@ -282,23 +321,35 @@ if file is not None:
         fig = plot_weather_signals(time, temperatures, irradiances)
         st.pyplot(fig)
 
-        if st.button("📄 Generate Word Report"):
-            report = generate_word_report(df, report_title, observation, fig)
-            st.download_button(
-                label="⬇️ Download Report",
-                data=report,
-                file_name="PV_Report.docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            )
-
-        if st.button("📄 Generate PDF Report"):
-            report = generate_pdf_report(df, report_title, observation, fig)
-            st.download_button(
-                label="⬇️ Download Report",
-                data=report,
-                file_name="PV_Report.pdf",
-                mime="application/pdf"
-            )
+        st.subheader("📄 Generate Reports")
+        
+        if st.button("👁️ Preview Report"):
+            st.session_state.show_preview = True
+        
+        if st.session_state.get("show_preview"):
+            with st.expander("📋 Report Preview", expanded=True):
+                preview_report_content(df, report_title, observation)
+            
+            st.divider()
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                report = generate_word_report(df, report_title, observation, fig)
+                st.download_button(
+                    label="⬇️ Download Word Report",
+                    data=report,
+                    file_name="PV_Report.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
+            
+            with col2:
+                report = generate_pdf_report(df, report_title, observation, fig)
+                st.download_button(
+                    label="⬇️ Download PDF Report",
+                    data=report,
+                    file_name="PV_Report.pdf",
+                    mime="application/pdf"
+                )
 
     if st.button("Test Supabase"):
         supabase.table("pi_commands").update({"command": "hello"}).eq("id", 1).execute()
