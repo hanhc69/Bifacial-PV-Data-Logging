@@ -14,6 +14,7 @@ supabase = create_client(
     st.secrets["SUPABASE_URL"],
     st.secrets["SUPABASE_KEY"]
 )
+
 # =========================
 # AUTHENTICATION
 # =========================
@@ -62,27 +63,27 @@ def fig_to_image_bytes(fig):
     buf.seek(0)
     return buf
 
-def plot_weather_signals(time, temperatures, irradiance, title="Weather Data"):
-    fig, ax1 = plt.subplots()
+def plot_weather_signals(time, temperatures, irradiances, title="Weather Data"):
+    fig, ax1 = plt.subplots(figsize=(12, 6))
 
-    # multiple temperature lines
     for label, temp_values in temperatures.items():
         ax1.plot(time, temp_values, label=label)
 
     ax1.set_xlabel("Time")
     ax1.set_ylabel("Temperature (°C)")
 
-    # irradiance axis
     ax2 = ax1.twinx()
-    ax2.plot(time, irradiance, color="orange", label="Irradiance")
+
+    for label, irr_values in irradiances.items():
+        ax2.plot(time, irr_values, linestyle="--", label=label)
+
     ax2.set_ylabel("Irradiance (W/m²)")
 
     plt.title(title)
 
-    # combined legend
     lines1, labels1 = ax1.get_legend_handles_labels()
     lines2, labels2 = ax2.get_legend_handles_labels()
-    ax1.legend(lines1 + lines2, labels1 + labels2)
+    ax1.legend(lines1 + lines2, labels1 + labels2, loc="upper left")
 
     fig.tight_layout()
     return fig
@@ -93,7 +94,6 @@ def plot_weather_signals(time, temperatures, irradiance, title="Weather Data"):
 
 def generate_word_report(df, report_title, observation, fig):
     doc = Document()
-
     doc.add_heading(report_title, level=1)
 
     table = doc.add_table(rows=6, cols=2)
@@ -122,7 +122,6 @@ def generate_word_report(df, report_title, observation, fig):
 
     if not numeric_df.empty:
         doc.add_heading("Numeric Summary", level=2)
-
         summary = doc.add_table(rows=len(numeric_df.columns) + 1, cols=4)
         summary.style = "Table Grid"
 
@@ -138,15 +137,14 @@ def generate_word_report(df, report_title, observation, fig):
             summary.cell(i, 3).text = f"{numeric_df[col].max():.2f}"
 
     doc.add_heading("Weather Graph", level=2)
-
     img_stream = fig_to_image_bytes(fig)
     doc.add_picture(img_stream)
-    
+
     buffer = BytesIO()
     doc.save(buffer)
     buffer.seek(0)
-
     return buffer
+
 # =========================
 # PDF REPORT
 # =========================
@@ -155,22 +153,11 @@ def generate_pdf_report(df, report_title, observation, fig):
     pdf = FPDF()
     pdf.add_page()
 
-    # Title
     pdf.set_font("Helvetica", "B", 16)
     pdf.cell(0, 10, report_title, new_x="LMARGIN", new_y="NEXT")
 
-    # Report info
-    start_time = (
-        f"{df['Date'].iloc[0]} {df['Time'].iloc[0]}"
-        if "Date" in df.columns and "Time" in df.columns
-        else "N/A"
-    )
-
-    end_time = (
-        f"{df['Date'].iloc[-1]} {df['Time'].iloc[-1]}"
-        if "Date" in df.columns and "Time" in df.columns
-        else "N/A"
-    )
+    start_time = f"{df['Date'].iloc[0]} {df['Time'].iloc[0]}" if "Date" in df.columns and "Time" in df.columns else "N/A"
+    end_time = f"{df['Date'].iloc[-1]} {df['Time'].iloc[-1]}" if "Date" in df.columns and "Time" in df.columns else "N/A"
 
     info = [
         ("Generated Date", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
@@ -182,7 +169,6 @@ def generate_pdf_report(df, report_title, observation, fig):
     ]
 
     pdf.ln(5)
-
     pdf.set_font("Helvetica", size=10)
 
     for key, value in info:
@@ -190,33 +176,27 @@ def generate_pdf_report(df, report_title, observation, fig):
         pdf.cell(130, 8, str(value), border=1)
         pdf.ln()
 
-    # Column Overview
     pdf.ln(5)
-
     pdf.set_font("Helvetica", "B", 13)
     pdf.cell(0, 10, "Column Overview", new_x="LMARGIN", new_y="NEXT")
 
     pdf.set_font("Helvetica", size=10)
     pdf.multi_cell(0, 8, ", ".join(df.columns))
 
-    # Numeric Summary
     numeric_df = df.select_dtypes(include="number")
 
     if not numeric_df.empty:
         pdf.ln(5)
-
         pdf.set_font("Helvetica", "B", 13)
         pdf.cell(0, 10, "Numeric Summary", new_x="LMARGIN", new_y="NEXT")
 
         pdf.set_font("Helvetica", "B", 10)
-
         headers = ["Column", "Mean", "Min", "Max"]
 
         for header in headers:
             pdf.cell(45, 8, header, border=1)
 
         pdf.ln()
-
         pdf.set_font("Helvetica", size=10)
 
         for col in numeric_df.columns:
@@ -226,46 +206,31 @@ def generate_pdf_report(df, report_title, observation, fig):
             pdf.cell(45, 8, f"{numeric_df[col].max():.2f}", border=1)
             pdf.ln()
 
-    # Graph
     pdf.ln(5)
-
     pdf.set_font("Helvetica", "B", 13)
     pdf.cell(0, 10, "Weather Graph", new_x="LMARGIN", new_y="NEXT")
 
     img_stream = fig_to_image_bytes(fig)
-    img_stream.seek(0)
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
         tmp.write(img_stream.getvalue())
         temp_image_path = tmp.name
 
     pdf.image(temp_image_path, w=180)
+    return bytes(pdf.output())
 
-    # Convert to bytes
-    pdf_bytes = bytes(pdf.output())
-
-    return pdf_bytes
-
-# =========================
-# Annual Irradiance Tracker
-# =========================
-def annual_irradiance_tracking(df,irrdiance):
-    return True
 # =========================
 # MAIN APP
 # =========================
 
-# Initialize session state
 if "auth" not in st.session_state:
     st.session_state.auth = False
-    st.session_state.user_role = None  # "admin" or "guest"
+    st.session_state.user_role = None
 
-# Check authentication
 if not st.session_state.auth:
     login()
     st.stop()
 
-# Logout button
 st.sidebar.subheader("Session")
 st.sidebar.write(f"Role: {st.session_state.user_role.capitalize()}")
 
@@ -274,10 +239,8 @@ if st.sidebar.button("🚪 Logout"):
     st.session_state.user_role = None
     st.rerun()
 
-# Main app title
 st.title("📊 Bifacial PV Data Logging System")
 
-# File upload
 file = st.file_uploader("Upload CSV", type=["csv"])
 
 report_title = st.text_input("Report Title", "Bifacial PV Performance Report")
@@ -294,58 +257,53 @@ if file is not None:
     st.write(f"Rows: {df.shape[0]}")
     st.write(f"Columns: {df.shape[1]}")
 
-    # Build plot inputs
     time = df["Time"] if "Time" in df.columns else df.index
 
-    # Detect temperature columns automatically
-    temperature_cols = [col for col in df.columns if "temp" in col.lower()]
+    numeric_cols = df.select_dtypes(include="number").columns.tolist()
 
-    temperatures = {
-        col: df[col].tolist()
-        for col in temperature_cols
-    }
+    st.subheader("📈 Graph Configuration")
 
-    irradiance = df["Irradiance"] if "Irradiance" in df.columns else [0] * len(df)
+    selected_temps = st.multiselect(
+        "Select Temperature Columns",
+        numeric_cols,
+        default=[c for c in numeric_cols if "temp" in c.lower()]
+    )
 
-    # Plot
-    fig = plot_weather_signals(time, temperatures, irradiance)
+    selected_irradiance = st.multiselect(
+        "Select Irradiance Columns",
+        numeric_cols,
+        default=[c for c in numeric_cols if "irr" in c.lower()]
+    )
 
-    st.pyplot(fig)
-    plt.close(fig)
+    temperatures = {col: df[col].tolist() for col in selected_temps}
+    irradiances = {col: df[col].tolist() for col in selected_irradiance}
 
-    # Word report button
-    if st.button("📄 Generate Word Report"):
+    if selected_temps or selected_irradiance:
+        fig = plot_weather_signals(time, temperatures, irradiances)
+        st.pyplot(fig)
 
-        report = generate_word_report(df, report_title, observation, fig)
+        if st.button("📄 Generate Word Report"):
+            report = generate_word_report(df, report_title, observation, fig)
+            st.download_button(
+                label="⬇️ Download Report",
+                data=report,
+                file_name="PV_Report.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            )
 
-        st.download_button(
-            label="⬇️ Download Report",
-            data=report,
-            file_name="PV_Report.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        )
+        if st.button("📄 Generate PDF Report"):
+            report = generate_pdf_report(df, report_title, observation, fig)
+            st.download_button(
+                label="⬇️ Download Report",
+                data=report,
+                file_name="PV_Report.pdf",
+                mime="application/pdf"
+            )
 
-    # PDF report button
-    if st.button("📄 Generate PDF Report"):
-
-        report = generate_pdf_report(df, report_title, observation, fig)
-
-        st.download_button(
-            label="⬇️ Download Report",
-            data=report,
-            file_name="PV_Report.pdf",
-            mime="application/pdf"
-        )
-    #testing
     if st.button("Test Supabase"):
-        response = (
-            supabase.table("pi_commands")
-            .update({"command": "hello"})
-            .eq("id", 1)
-            .execute()
-        )
+        supabase.table("pi_commands").update({"command": "hello"}).eq("id", 1).execute()
         st.success("Database updated!")
-# Admin panel
+
 if st.session_state.user_role == "admin":
     st.divider()
     st.subheader("🔴 Admin Controls")
@@ -356,6 +314,5 @@ if st.session_state.user_role == "admin":
     if st.button("⛔ Shutdown Raspberry Pi"):
         os.system("sudo shutdown -h now")
 else:
-    # Show message to guests
     st.divider()
     st.info("ℹ️ Admin controls are not available in guest mode.")
