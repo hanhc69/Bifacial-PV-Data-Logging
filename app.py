@@ -89,20 +89,15 @@ def plot_weather_signals(time, temperatures, irradiances, title="Weather Data"):
     return fig
 
 # =========================
-# PREVIEW FUNCTION
+# REPORT DATA BUILDER
 # =========================
 
-def preview_report_content(df, report_title, observation, fig):
-    """Display a preview of what will be in the report"""
-    
-    # Report Title
-    st.markdown(f"# {report_title}")
-    
-    # Metadata Table
+def build_report_data(df, report_title, observation, fig):
+    """Build uniform report data structure"""
     start_time = f"{df['Date'].iloc[0]} {df['Time'].iloc[0]}" if "Date" in df.columns and "Time" in df.columns else "N/A"
     end_time = f"{df['Date'].iloc[-1]} {df['Time'].iloc[-1]}" if "Date" in df.columns and "Time" in df.columns else "N/A"
     
-    info = [
+    metadata = [
         ("Generated Date", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
         ("Total Records", str(df.shape[0])),
         ("Total Columns", str(df.shape[1])),
@@ -111,83 +106,101 @@ def preview_report_content(df, report_title, observation, fig):
         ("Observation Notes", observation if observation else "")
     ]
     
-    metadata_df = pd.DataFrame(info, columns=["Field", "Value"])
+    columns_list = ", ".join(df.columns)
+    
+    numeric_df = df.select_dtypes(include="number")
+    numeric_summary = None
+    
+    if not numeric_df.empty:
+        numeric_summary = []
+        for col in numeric_df.columns:
+            numeric_summary.append({
+                "Column": col,
+                "Mean": f"{numeric_df[col].mean():.2f}",
+                "Min": f"{numeric_df[col].min():.2f}",
+                "Max": f"{numeric_df[col].max():.2f}"
+            })
+    
+    return {
+        "title": report_title,
+        "metadata": metadata,
+        "columns": columns_list,
+        "numeric_summary": numeric_summary,
+        "figure": fig
+    }
+
+# =========================
+# PREVIEW FUNCTION
+# =========================
+
+def preview_report_content(df, report_title, observation, fig):
+    """Display a preview of what will be in the report"""
+    report_data = build_report_data(df, report_title, observation, fig)
+    
+    # Report Title
+    st.markdown(f"# {report_data['title']}")
+    
+    # Metadata Table
+    metadata_df = pd.DataFrame(report_data['metadata'], columns=["Field", "Value"])
     st.dataframe(metadata_df, use_container_width=True, hide_index=True)
     
     # Column Overview
     st.markdown("## Column Overview")
-    st.write(", ".join(df.columns))
+    st.write(report_data['columns'])
     
     # Numeric Summary
     st.markdown("## Numeric Summary")
-    numeric_df = df.select_dtypes(include="number")
-    
-    if not numeric_df.empty:
-        summary_data = {
-            'Column': numeric_df.columns,
-            'Mean': [f"{numeric_df[col].mean():.2f}" for col in numeric_df.columns],
-            'Min': [f"{numeric_df[col].min():.2f}" for col in numeric_df.columns],
-            'Max': [f"{numeric_df[col].max():.2f}" for col in numeric_df.columns],
-        }
-        summary_table = pd.DataFrame(summary_data)
-        st.dataframe(summary_table, use_container_width=True, hide_index=True)
+    if report_data['numeric_summary']:
+        summary_df = pd.DataFrame(report_data['numeric_summary'])
+        st.dataframe(summary_df, use_container_width=True, hide_index=True)
     else:
         st.info("No numeric columns found")
     
     # Weather Graph
     st.markdown("## Weather Graph")
-    st.pyplot(fig)
+    st.pyplot(report_data['figure'])
 
 # =========================
 # WORD REPORT
 # =========================
 
 def generate_word_report(df, report_title, observation, fig):
+    report_data = build_report_data(df, report_title, observation, fig)
+    
     doc = Document()
-    doc.add_heading(report_title, level=1)
+    doc.add_heading(report_data['title'], level=1)
 
-    table = doc.add_table(rows=6, cols=2)
+    # Metadata Table
+    table = doc.add_table(rows=len(report_data['metadata']), cols=2)
     table.style = "Table Grid"
 
-    start_time = f"{df['Date'].iloc[0]} {df['Time'].iloc[0]}" if "Date" in df.columns and "Time" in df.columns else "N/A"
-    end_time = f"{df['Date'].iloc[-1]} {df['Time'].iloc[-1]}" if "Date" in df.columns and "Time" in df.columns else "N/A"
+    for i, (key, value) in enumerate(report_data['metadata']):
+        table.cell(i, 0).text = key
+        table.cell(i, 1).text = value
 
-    info = [
-        ("Generated Date", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
-        ("Total Records", str(df.shape[0])),
-        ("Total Columns", str(df.shape[1])),
-        ("Start Time", start_time),
-        ("End Time", end_time),
-        ("Observation Notes", observation)
-    ]
-
-    for i, (k, v) in enumerate(info):
-        table.cell(i, 0).text = k
-        table.cell(i, 1).text = v
-
+    # Column Overview
     doc.add_heading("Column Overview", level=2)
-    doc.add_paragraph(", ".join(df.columns))
+    doc.add_paragraph(report_data['columns'])
 
-    numeric_df = df.select_dtypes(include="number")
-
-    if not numeric_df.empty:
+    # Numeric Summary
+    if report_data['numeric_summary']:
         doc.add_heading("Numeric Summary", level=2)
-        summary = doc.add_table(rows=len(numeric_df.columns) + 1, cols=4)
-        summary.style = "Table Grid"
+        summary_table = doc.add_table(rows=len(report_data['numeric_summary']) + 1, cols=4)
+        summary_table.style = "Table Grid"
 
-        summary.cell(0, 0).text = "Column"
-        summary.cell(0, 1).text = "Mean"
-        summary.cell(0, 2).text = "Min"
-        summary.cell(0, 3).text = "Max"
+        headers = ["Column", "Mean", "Min", "Max"]
+        for col_idx, header in enumerate(headers):
+            summary_table.cell(0, col_idx).text = header
 
-        for i, col in enumerate(numeric_df.columns, start=1):
-            summary.cell(i, 0).text = col
-            summary.cell(i, 1).text = f"{numeric_df[col].mean():.2f}"
-            summary.cell(i, 2).text = f"{numeric_df[col].min():.2f}"
-            summary.cell(i, 3).text = f"{numeric_df[col].max():.2f}"
+        for row_idx, row_data in enumerate(report_data['numeric_summary'], start=1):
+            summary_table.cell(row_idx, 0).text = row_data["Column"]
+            summary_table.cell(row_idx, 1).text = row_data["Mean"]
+            summary_table.cell(row_idx, 2).text = row_data["Min"]
+            summary_table.cell(row_idx, 3).text = row_data["Max"]
 
+    # Weather Graph
     doc.add_heading("Weather Graph", level=2)
-    img_stream = fig_to_image_bytes(fig)
+    img_stream = fig_to_image_bytes(report_data['figure'])
     doc.add_picture(img_stream)
 
     buffer = BytesIO()
@@ -200,73 +213,71 @@ def generate_word_report(df, report_title, observation, fig):
 # =========================
 
 def generate_pdf_report(df, report_title, observation, fig):
+    report_data = build_report_data(df, report_title, observation, fig)
+    
     pdf = FPDF()
     pdf.add_page()
 
+    # Title
     pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 10, report_title, new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 10, report_data['title'], new_x="LMARGIN", new_y="NEXT")
 
-    start_time = f"{df['Date'].iloc[0]} {df['Time'].iloc[0]}" if "Date" in df.columns and "Time" in df.columns else "N/A"
-    end_time = f"{df['Date'].iloc[-1]} {df['Time'].iloc[-1]}" if "Date" in df.columns and "Time" in df.columns else "N/A"
-
-    info = [
-        ("Generated Date", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
-        ("Total Records", str(df.shape[0])),
-        ("Total Columns", str(df.shape[1])),
-        ("Start Time", start_time),
-        ("End Time", end_time),
-        ("Observation Notes", observation)
-    ]
-
+    # Metadata Table
     pdf.ln(5)
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(50, 8, "Field", border=1)
+    pdf.cell(130, 8, "Value", border=1)
+    pdf.ln()
+    
     pdf.set_font("Helvetica", size=10)
-
-    for key, value in info:
+    for key, value in report_data['metadata']:
         pdf.cell(50, 8, key, border=1)
         pdf.cell(130, 8, str(value), border=1)
         pdf.ln()
 
+    # Column Overview
     pdf.ln(5)
     pdf.set_font("Helvetica", "B", 13)
     pdf.cell(0, 10, "Column Overview", new_x="LMARGIN", new_y="NEXT")
 
     pdf.set_font("Helvetica", size=10)
-    pdf.multi_cell(0, 8, ", ".join(df.columns))
+    pdf.multi_cell(0, 8, report_data['columns'])
 
-    numeric_df = df.select_dtypes(include="number")
-
-    if not numeric_df.empty:
+    # Numeric Summary
+    if report_data['numeric_summary']:
         pdf.ln(5)
         pdf.set_font("Helvetica", "B", 13)
         pdf.cell(0, 10, "Numeric Summary", new_x="LMARGIN", new_y="NEXT")
 
         pdf.set_font("Helvetica", "B", 10)
         headers = ["Column", "Mean", "Min", "Max"]
-
         for header in headers:
             pdf.cell(45, 8, header, border=1)
-
         pdf.ln()
-        pdf.set_font("Helvetica", size=10)
 
-        for col in numeric_df.columns:
-            pdf.cell(45, 8, str(col), border=1)
-            pdf.cell(45, 8, f"{numeric_df[col].mean():.2f}", border=1)
-            pdf.cell(45, 8, f"{numeric_df[col].min():.2f}", border=1)
-            pdf.cell(45, 8, f"{numeric_df[col].max():.2f}", border=1)
+        pdf.set_font("Helvetica", size=10)
+        for row_data in report_data['numeric_summary']:
+            pdf.cell(45, 8, str(row_data["Column"]), border=1)
+            pdf.cell(45, 8, row_data["Mean"], border=1)
+            pdf.cell(45, 8, row_data["Min"], border=1)
+            pdf.cell(45, 8, row_data["Max"], border=1)
             pdf.ln()
 
+    # Weather Graph
     pdf.ln(5)
     pdf.set_font("Helvetica", "B", 13)
     pdf.cell(0, 10, "Weather Graph", new_x="LMARGIN", new_y="NEXT")
 
-    img_stream = fig_to_image_bytes(fig)
+    img_stream = fig_to_image_bytes(report_data['figure'])
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
         tmp.write(img_stream.getvalue())
         temp_image_path = tmp.name
 
     pdf.image(temp_image_path, w=180)
+    
+    os.unlink(temp_image_path)
+    
     return bytes(pdf.output())
 
 # =========================
