@@ -381,11 +381,22 @@ if st.session_state.user_role == "admin":
     st.divider()
     st.subheader("🔴 Admin Controls")
 
-    if st.button("🔄 Restart Raspberry Pi"):
-        os.system("sudo reboot")
+    if st.button("🔄 Reboot Raspberry Pi"):
 
-    if st.button("⛔ Shutdown Raspberry Pi"):
-        os.system("sudo shutdown -h now")
+        supabase.table("pi_commands") \
+            .update({"command": "reboot"}) \
+            .eq("id", 1) \
+            .execute()
+
+        st.success("Reboot command sent.")
+
+    if st.button("⚫ Shutdown Raspberry Pi"):
+
+        supabase.table("pi_commands") \
+            .update({"command": "shutdown"}) \
+            .eq("id", 1) \
+            .execute()
+        st.success("Shutdown command sent.")
 else:
     st.divider()
     st.info("ℹ️ Admin controls are not available in guest mode.")
