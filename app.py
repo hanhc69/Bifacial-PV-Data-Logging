@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from fpdf import FPDF
 import tempfile
 from supabase import create_client
+from streamlit_autorefresh import st_autorefresh
 
 supabase = create_client(
     st.secrets["SUPABASE_URL"],
@@ -400,3 +401,64 @@ if st.session_state.user_role == "admin":
 else:
     st.divider()
     st.info("ℹ️ Admin controls are not available in guest mode.")
+
+# =========================
+# LIVE SENSOR DATA
+# =========================
+
+st.divider()
+st.subheader("Live Sensor Data")
+
+refresh_seconds = st.slider("Auto-refresh interval (seconds)", 5, 60, 15)
+st_autorefresh(interval=refresh_seconds * 1000, key="live_refresh")
+
+@st.cache_data(ttl=5)
+def fetch_latest_readings(limit=50):
+    response = (
+        supabase.table("sensor_readings")
+        .select("*")
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    rows = response.data
+    if not rows:
+        return pd.DataFrame()
+
+    # flatten the jsonb "readings" column into normal columns
+    flat_rows = []
+    for r in rows:
+        flat = {"created_at": r["created_at"], "date": r["date"], "time": r["time"]}
+        flat.update(r["readings"] or {})
+        flat_rows.append(flat)
+
+    df_live = pd.DataFrame(flat_rows)
+    df_live = df_live.sort_values("created_at")  # oldest -> newest for plotting
+    return df_live
+
+df_live = fetch_latest_readings()
+
+if df_live.empty:
+    st.info("No live data yet — waiting for the Pi to push a sample.")
+else:
+    latest = df_live.iloc[-1]
+    st.caption(f"Last update: {latest['date']} {latest['time']}")
+
+    irr_cols = [c for c in df_live.columns if c.startswith("Irr_")]
+    temp_cols = [c for c in df_live.columns if c.startswith("Temp_")]
+
+    # quick "latest values" snapshot
+    cols = st.columns(4)
+    for i, col in enumerate(irr_cols[:4]):
+        val = latest[col]
+        cols[i].metric(col, f"{val:.1f} W/m²" if val is not None else "—")
+
+    # live trend chart — reuse your existing plotting logic if you prefer
+    selected_live_irr = st.multiselect(
+        "Irradiance sensors to plot (live)", irr_cols, default=irr_cols[:1]
+    )
+    if selected_live_irr:
+        st.line_chart(df_live.set_index("created_at")[selected_live_irr])
+
+    with st.expander("Raw live data table"):
+        st.dataframe(df_live, use_container_width=True, hide_index=True)
